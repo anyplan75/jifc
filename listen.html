@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>JIFC 실시간 통역</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    :root {
+      --bg: #10151c;
+      --panel: #1c2430;
+      --text: #f3f6fa;
+      --muted: #9aa8b8;
+      --accent: #1f8f6a;
+      --interim: #8b98a8;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+    }
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: rgba(28, 36, 48, 0.96);
+      backdrop-filter: blur(8px);
+      padding: 12px 16px 14px;
+      z-index: 10;
+      border-bottom: 1px solid #2a3545;
+    }
+    .church {
+      text-align: center;
+      font-weight: 800;
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+    select {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0d1218;
+      color: white;
+      font-weight: 600;
+    }
+    #scriptBox {
+      margin-top: 110px;
+      padding: 20px 18px 60px;
+      font-size: 1.35rem;
+      line-height: 1.7;
+    }
+    #scriptBox p {
+      margin: 0 0 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px dashed #2f3b4c;
+    }
+    #scriptBox p.interim { color: var(--interim); }
+    #scriptBox p.waiting {
+      color: var(--muted);
+      border: none;
+      text-align: center;
+      margin-top: 20vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div class="church">제주 국제순복음교회 · 실시간 통역</div>
+    <select id="langSelect" aria-label="언어 선택"></select>
+  </div>
+  <div id="scriptBox">
+    <p class="waiting">실시간 통역 대기 중입니다...</p>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/viewer.js"></script>
+  <script>
+    const initial = JIFC.viewer.queryLang("en");
+    const select = document.getElementById("langSelect");
+    JIFC.viewer.fillLangSelect(select, initial);
+    JIFC.viewer.startPrompter({
+      langSelect: select,
+      scriptBox: document.getElementById("scriptBox"),
+    });
+  </script>
+</body>
+</html>

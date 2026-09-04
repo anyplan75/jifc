@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JIFC 실시간 통역</title>
+  <meta name="description" content="제주 국제순복음교회 실시간 다국어 통역">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div class="container">
+      <header class="brand">
+        <div class="church">제주 국제순복음교회</div>
+        <div class="sub">Jeju International Full Gospel Church · 실시간 다국어 통역</div>
+      </header>
+
+      <section class="card">
+        <h2>성도님 안내</h2>
+        <p style="margin:0 0 8px; color:var(--muted);">원하시는 언어를 선택하면 휴대폰으로 실시간 통역 자막을 볼 수 있습니다.</p>
+        <div class="lang-grid" id="langGrid"></div>
+      </section>
+
+      <section class="card">
+        <h2>운영 도구</h2>
+        <div class="nav-grid">
+          <a class="nav-card" href="broadcast.html">
+            <strong>송출기</strong>
+            <span>마이크 인식 · AI 교정/번역 · Firebase 송출</span>
+          </a>
+          <a class="nav-card" href="admin.html">
+            <strong>제어판</strong>
+            <span>언어 on/off, 글자 크기, 화면 배치</span>
+          </a>
+          <a class="nav-card" href="monitor.html">
+            <strong>모니터</strong>
+            <span>8개 언어 멀티뷰 모니터링</span>
+          </a>
+          <a class="nav-card" href="overlay.html?lang=ko">
+            <strong>OBS 오버레이</strong>
+            <span>방송용 투명 자막 (lang 파라미터)</span>
+          </a>
+        </div>
+      </section>
+
+      <p class="hint">QR 코드는 이 페이지(또는 listen.html) 주소를 인쇄해 성도님께 안내하세요.</p>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script>
+    document.getElementById("langGrid").innerHTML = JIFC.config.languages.map((l) => `
+      <a class="lang-link" href="listen.html?lang=${encodeURIComponent(l.code)}">
+        <span class="flag">${l.flag}</span>
+        <span class="name">${l.name}</span>
+        <span style="color:var(--muted);font-size:0.8rem;">${l.nameEn}</span>
+      </a>
+    `).join("");
+  </script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>JIFC 멀티뷰 모니터</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 14px 16px;
+      height: 100vh;
+      box-sizing: border-box;
+      overflow: hidden;
+      background: #0b1016;
+      color: #f2f5f8;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+      user-select: none;
+    }
+    h1 {
+      margin: 0 0 12px;
+      text-align: center;
+      font-size: 1.25rem;
+      color: #4ade80;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 12px;
+      height: calc(100vh - 52px);
+    }
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); }
+    }
+    .box {
+      background: #151c27;
+      border: 1px solid #2a3545;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #ffd666;
+      border-bottom: 1px solid #2a3545;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .content {
+      flex: 1;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      overflow: hidden;
+      word-break: keep-all;
+    }
+    .content p {
+      margin: 0 0 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed #2a3545;
+      color: #d7dee8;
+    }
+    .content p:last-child {
+      border: none;
+      margin: 0;
+      color: #38bdf8;
+      font-weight: 700;
+    }
+    .waiting { text-align: center; color: #64748b !important; border: none !important; }
+  </style>
+</head>
+<body>
+  <h1>제주 국제순복음교회 · 다국어 자막 모니터</h1>
+  <div class="grid" id="monitorGrid"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/viewer.js"></script>
+  <script>
+    const grid = document.getElementById("monitorGrid");
+    const langData = {};
+
+    JIFC.config.languages.forEach((lang) => {
+      langData[lang.code] = { lastTime: 0, lines: [] };
+      grid.innerHTML += `
+        <div class="box">
+          <div class="title">${lang.flag} ${lang.name}</div>
+          <div class="content" id="box_${lang.code}">
+            <p class="waiting">대기 중...</p>
+          </div>
+        </div>
+      `;
+    });
+
+    function applySubtitles(subtitles) {
+      if (!subtitles) return;
+      const ts = subtitles._timestamp;
+      JIFC.config.languages.forEach((lang) => {
+        const code = lang.code;
+        const n = subtitles[code];
+        if (!n || ts === langData[code].lastTime) return;
+        langData[code].lastTime = ts;
+
+        const text = typeof n === "object" ? n.text : n;
+        const msgId = typeof n === "object" ? n.id : ts;
+        const idx = langData[code].lines.findIndex((l) => l.id === msgId);
+        if (idx !== -1) {
+          langData[code].lines[idx].text = text;
+        } else {
+          langData[code].lines.push({ id: msgId, text });
+          while (langData[code].lines.length > 4) langData[code].lines.shift();
+        }
+        document.getElementById(`box_${code}`).innerHTML =
+          langData[code].lines.map((l) => `<p>${JIFC.viewer.escapeHtml(l.text)}</p>`).join("");
+      });
+    }
+
+    JIFC.db.init().then(() => {
+      JIFC.db.onValue("subtitles", applySubtitles);
+    });
+  </script>
+</body>
+</html>
