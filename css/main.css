@@ -211,9 +211,10 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .lang-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
   margin-top: 12px;
+  max-height: none;
 }
 
 .lang-link {

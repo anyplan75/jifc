@@ -8,6 +8,51 @@
   <title>JIFC 송출기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
   <link rel="stylesheet" href="css/main.css">
+  <style>
+    .lang-pick-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .lang-pick {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #121a24;
+      cursor: pointer;
+      user-select: none;
+      font-weight: 700;
+      color: #fff;
+    }
+    .lang-pick input { width: 18px; height: 18px; }
+    .lang-pick .meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .lang-pick .meta small { color: var(--muted); font-weight: 600; font-size: 0.75rem; }
+    .lang-pick.is-on { border-color: var(--accent); background: rgba(31, 143, 106, 0.18); }
+    .link-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .link-row {
+      display: grid;
+      grid-template-columns: 140px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #0d1218;
+      border: 1px solid var(--border);
+    }
+    .link-row input {
+      width: 100%;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .link-row .name { font-weight: 800; white-space: nowrap; }
+    @media (max-width: 720px) {
+      .link-row { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -32,6 +77,18 @@
       </section>
 
       <section class="card">
+        <h2>오늘 송출할 언어 (선택한 언어만 API 번역)</h2>
+        <p class="hint" style="margin-top:0;">한국어는 항상 포함됩니다. 언어를 줄일수록 토큰·지연이 줄어듭니다.</p>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn btn-ghost" type="button" id="selectDefaultsBtn">추천만</button>
+          <button class="btn btn-ghost" type="button" id="selectAllBtn">전체</button>
+          <button class="btn btn-ghost" type="button" id="selectNoneBtn">번역 없음</button>
+          <span class="hint" id="selectedCount" style="margin:0;"></span>
+        </div>
+        <div class="lang-pick-grid" id="langPickGrid"></div>
+      </section>
+
+      <section class="card">
         <h2>방송 제어</h2>
         <div class="row" style="margin-bottom:12px;">
           <span style="font-weight:700;">실시간 덮어쓰기 (Live Preview)</span>
@@ -47,6 +104,12 @@
           <a class="btn btn-ghost" href="index.html">홈</a>
         </div>
         <p class="hint" id="folderHint">폴더를 연결하면 날짜/시간별 하위 폴더에 자막·전문이 저장됩니다.</p>
+      </section>
+
+      <section class="card" id="linksCard" style="display:none;">
+        <h2>선택 언어 OBS 오버레이 / 성도 링크</h2>
+        <p class="hint" style="margin-top:0;">방송 시작 후 생성된 링크입니다. OBS 브라우저 소스에 오버레이 URL을 넣으세요.</p>
+        <div class="link-list" id="linkList"></div>
       </section>
 
       <div class="realtime" id="realtimeText">대기 중...</div>
@@ -70,6 +133,10 @@
     const folderBtn = document.getElementById("folderBtn");
     const startBtn = document.getElementById("startBtn");
     const stopBtn = document.getElementById("stopBtn");
+    const langPickGrid = document.getElementById("langPickGrid");
+    const selectedCount = document.getElementById("selectedCount");
+    const linksCard = document.getElementById("linksCard");
+    const linkList = document.getElementById("linkList");
 
     apiKeyInput.value = JIFC.broadcast.loadApiKey();
     const savedModel = JIFC.broadcast.loadModel();
@@ -77,6 +144,78 @@
       `<option value="${m.id}"${m.id === savedModel ? " selected" : ""}>${m.label}</option>`
     ).join("");
     modelSelect.addEventListener("change", () => JIFC.broadcast.saveModel(modelSelect.value));
+
+    function currentTargets() {
+      return Array.from(langPickGrid.querySelectorAll('input[type="checkbox"]:checked')).map((el) => el.value);
+    }
+
+    function refreshCount() {
+      const n = currentTargets().length;
+      selectedCount.textContent = `번역 ${n}개 + 한국어`;
+      JIFC.broadcast.saveTargets(currentTargets());
+      langPickGrid.querySelectorAll(".lang-pick").forEach((label) => {
+        const on = label.querySelector("input").checked;
+        label.classList.toggle("is-on", on);
+      });
+    }
+
+    function renderLangPicker(selected) {
+      const set = new Set(selected);
+      langPickGrid.innerHTML = JIFC.targetLangCodes().map((code) => {
+        const l = JIFC.langByCode[code];
+        const checked = set.has(code) ? "checked" : "";
+        return `
+          <label class="lang-pick${set.has(code) ? " is-on" : ""}">
+            <input type="checkbox" value="${l.code}" ${checked}>
+            <span class="meta">
+              <span>${l.flag} ${l.name}</span>
+              <small>${l.nameEn}</small>
+            </span>
+          </label>
+        `;
+      }).join("");
+      langPickGrid.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("change", refreshCount);
+      });
+      refreshCount();
+    }
+
+    renderLangPicker(JIFC.broadcast.loadSavedTargets());
+
+    document.getElementById("selectDefaultsBtn").addEventListener("click", () => {
+      renderLangPicker(JIFC.defaultSelectedTargets());
+    });
+    document.getElementById("selectAllBtn").addEventListener("click", () => {
+      renderLangPicker(JIFC.targetLangCodes());
+    });
+    document.getElementById("selectNoneBtn").addEventListener("click", () => {
+      renderLangPicker([]);
+    });
+
+    function renderLinks(links) {
+      linksCard.style.display = "block";
+      linkList.innerHTML = links.map((item) => `
+        <div class="link-row">
+          <div class="name">${item.flag} ${item.name}</div>
+          <input type="text" readonly value="${item.overlay}" aria-label="${item.name} overlay">
+          <button class="btn btn-ghost" type="button" data-copy="${item.overlay}">복사</button>
+          <div class="name" style="opacity:0.7;font-size:0.85rem;">성도용</div>
+          <input type="text" readonly value="${item.listen}" aria-label="${item.name} listen">
+          <button class="btn btn-ghost" type="button" data-copy="${item.listen}">복사</button>
+        </div>
+      `).join("");
+      linkList.querySelectorAll("[data-copy]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(btn.getAttribute("data-copy"));
+            btn.textContent = "완료";
+            setTimeout(() => (btn.textContent = "복사"), 1200);
+          } catch (_) {
+            alert("복사에 실패했습니다. 주소를 길게 눌러 복사하세요.");
+          }
+        });
+      });
+    }
 
     document.getElementById("saveKeyBtn").addEventListener("click", () => {
       try {
@@ -92,7 +231,7 @@
         await JIFC.broadcast.connectLocalFolder();
         folderBtn.style.display = "none";
         startBtn.style.display = "inline-block";
-        document.getElementById("folderHint").textContent = "폴더 연결 완료. 방송 시작을 누르세요.";
+        document.getElementById("folderHint").textContent = "폴더 연결 완료. 언어를 고른 뒤 방송 시작을 누르세요.";
       } catch (_) {}
     });
 
@@ -124,9 +263,10 @@
         realtimeText.textContent = `듣는 중: ${display}`;
       },
       onSentence: (text, msgId) => {
+        const n = JIFC.broadcast.getEnabledTargets().length;
         appendLog(msgId, `
           <div class="orig">원본: ${JIFC.viewer.escapeHtml(text)}</div>
-          <div class="pending">AI 교정 및 통역 중...</div>
+          <div class="pending">AI 교정 + 번역 ${n}개 언어 처리 중...</div>
         `);
       },
       onTranslateStart: () => {},
@@ -146,6 +286,7 @@
         realtimeText.textContent = `음성 인식 오류: ${err}`;
         realtimeText.style.color = "#ff6b6b";
       },
+      onLinksReady: (links) => renderLinks(links),
       onSaved: () => alert("날짜별 폴더에 실시간 파일과 설교 전문(_full.txt)이 저장되었습니다."),
     };
 
@@ -158,9 +299,11 @@
     startBtn.addEventListener("click", async () => {
       try {
         JIFC.broadcast.saveModel(modelSelect.value);
+        JIFC.broadcast.saveTargets(currentTargets());
         await JIFC.broadcast.startBroadcast(handlers);
         startBtn.style.display = "none";
         stopBtn.style.display = "inline-block";
+        langPickGrid.querySelectorAll("input").forEach((el) => { el.disabled = true; });
       } catch (e) {
         alert(e.message);
       }
@@ -172,7 +315,12 @@
       stopBtn.style.display = "none";
       realtimeText.textContent = "대기 중...";
       realtimeText.style.color = "";
+      langPickGrid.querySelectorAll("input").forEach((el) => { el.disabled = false; });
     });
+
+    // Preview links before broadcast too
+    renderLinks(JIFC.broadcast.buildOverlayLinks(JIFC.broadcast.getEnabledTargets()));
+    linksCard.style.display = "block";
 
     JIFC.db.init().catch(() => {});
   </script>
