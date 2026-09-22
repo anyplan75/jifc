@@ -249,16 +249,30 @@
       applyReadability(code);
     }
 
-    JIFC.viewer.fillLangSelect(select, JIFC.langByCode[initial] ? initial : "en");
-    applyReadability(select.value);
-    localStorage.setItem(LANG_KEY, select.value);
+    function applyLangChoice(code) {
+      localStorage.setItem(LANG_KEY, code);
+      const url = new URL(location.href);
+      url.searchParams.set("lang", code);
+      history.replaceState(null, "", url);
+      applyReadability(code);
+    }
+
+    function rebuildLangSelect(allowedCodes, preferred) {
+      const prev = preferred || select.value || initial;
+      const before = select.value;
+      const chosen = JIFC.viewer.fillLangSelect(select, prev, allowedCodes);
+      applyLangChoice(chosen);
+      if (chosen !== before) {
+        select.dispatchEvent(new Event("change"));
+      }
+      return chosen;
+    }
+
+    // 초기: 추천 언어만 표시 → Firebase settings 오면 송출 선택 언어로 교체
+    rebuildLangSelect(["ko", ...JIFC.defaultSelectedTargets()], initial);
 
     select.addEventListener("change", () => {
-      localStorage.setItem(LANG_KEY, select.value);
-      const url = new URL(location.href);
-      url.searchParams.set("lang", select.value);
-      history.replaceState(null, "", url);
-      applyReadability(select.value);
+      applyLangChoice(select.value);
     });
 
     document.getElementById("fontUp").addEventListener("click", () => bumpFont(2));
@@ -277,6 +291,13 @@
       langSelect: select,
       scriptBox,
       maxLines: 40,
+    });
+
+    JIFC.db.init().then(() => {
+      JIFC.db.onValue("settings", (settings) => {
+        const active = JIFC.viewer.activeLangCodesFromSettings(settings);
+        rebuildLangSelect(active, select.value || initial);
+      });
     });
   </script>
 </body>
