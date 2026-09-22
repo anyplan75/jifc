@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0c1118">
+  <title>JIFC 나의 통역</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@500;600;700;800&family=Noto+Sans+SC:wght@500;600;700&family=Noto+Sans+KR:wght@500;600;700;800&family=Noto+Sans+Devanagari:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    :root {
+      --bg: #0c1118;
+      --panel: rgba(20, 28, 38, 0.96);
+      --text: #f5f7fa;
+      --muted: #8b9aab;
+      --line: #2a3545;
+      --accent: #2a9d75;
+      --interim: #9aa8b8;
+      --latest: #fff6d6;
+      --font-size: 26px;
+      --line-height: 1.75;
+      --letter-spacing: -0.01em;
+      --word-break: keep-all;
+      --font-weight: 650;
+      --font-family: "Pretendard", "Noto Sans KR", sans-serif;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(900px 420px at 50% -20%, rgba(42, 157, 117, 0.16), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--font-family);
+      -webkit-text-size-adjust: 100%;
+    }
+
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 20;
+      padding: calc(10px + var(--safe-top)) 14px 12px;
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .church {
+      text-align: center;
+      font-weight: 800;
+      font-size: 0.9rem;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+      color: #fff;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    select {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #0a0f15;
+      color: #fff;
+      font-weight: 700;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+    }
+
+    .size-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .size-btn {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #121a24;
+      color: #fff;
+      font-size: 1.15rem;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: "Pretendard", sans-serif;
+    }
+
+    .size-btn:active { background: #1c2836; }
+
+    #scriptBox {
+      margin-top: calc(118px + var(--safe-top));
+      padding: 8px 16px calc(36px + var(--safe-bottom));
+      font-size: var(--font-size);
+      line-height: var(--line-height);
+      letter-spacing: var(--letter-spacing);
+      word-break: var(--word-break);
+      overflow-wrap: break-word;
+      font-family: var(--font-family);
+      font-weight: var(--font-weight);
+    }
+
+    #scriptBox p {
+      margin: 0 0 18px;
+      padding-bottom: 18px;
+      border-bottom: 1px dashed var(--line);
+      color: #dce3eb;
+    }
+
+    #scriptBox p:last-child {
+      color: var(--latest);
+      font-weight: 800;
+      font-size: 1.06em;
+      border-bottom: none;
+    }
+
+    #scriptBox p.interim {
+      color: var(--interim);
+      font-weight: 600;
+      font-size: 1em;
+    }
+
+    #scriptBox p.waiting {
+      color: var(--muted);
+      border: none;
+      text-align: center;
+      margin-top: 22vh;
+      font-size: 1.05rem;
+      font-weight: 600;
+      line-height: 1.6;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+      letter-spacing: -0.01em;
+    }
+
+    .hint-bar {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 8px 14px calc(8px + var(--safe-bottom));
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      background: linear-gradient(transparent, rgba(12, 17, 24, 0.92) 40%);
+      pointer-events: none;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div class="church">제주 국제순복음교회 · 나의 통역</div>
+    <div class="controls">
+      <select id="langSelect" aria-label="언어 선택"></select>
+      <div class="size-controls">
+        <button type="button" class="size-btn" id="fontDown" aria-label="글자 작게">A-</button>
+        <button type="button" class="size-btn" id="fontUp" aria-label="글자 크게">A+</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scriptBox">
+    <p class="waiting">언어를 고르면<br>그 언어에 맞는 글씨체로 크게 표시됩니다.</p>
+  </div>
+  <div class="hint-bar">언어마다 글꼴·자간·줄간격이 자동 조절됩니다 · A+/A-로 크기만 변경</div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/viewer.js"></script>
+  <script>
+    const LANG_KEY = "jifc_listen_lang";
+    const FONT_DELTA_PREFIX = "jifc_listen_font_delta_";
+    const MIN_FONT = 16;
+    const MAX_FONT = 44;
+
+    const DEFAULT_READABILITY = {
+      fontSize: 26,
+      lineHeight: 1.75,
+      letterSpacing: "-0.01em",
+      wordBreak: "keep-all",
+      fontWeight: 650,
+      fontFamily: '"Pretendard", "Noto Sans KR", sans-serif',
+    };
+
+    const params = new URLSearchParams(location.search);
+    const savedLang = localStorage.getItem(LANG_KEY);
+    const initial = params.get("lang") || savedLang || "en";
+    const select = document.getElementById("langSelect");
+    const root = document.documentElement;
+    const scriptBox = document.getElementById("scriptBox");
+
+    function fontDeltaKey(code) {
+      return FONT_DELTA_PREFIX + code;
+    }
+
+    function getDelta(code) {
+      const n = parseInt(localStorage.getItem(fontDeltaKey(code)) || "0", 10);
+      return Number.isNaN(n) ? 0 : n;
+    }
+
+    function setDelta(code, delta) {
+      localStorage.setItem(fontDeltaKey(code), String(delta));
+    }
+
+    function readabilityFor(code) {
+      const meta = JIFC.langByCode[code];
+      return Object.assign({}, DEFAULT_READABILITY, (meta && meta.readability) || {});
+    }
+
+    function applyReadability(code) {
+      const r = readabilityFor(code);
+      const delta = getDelta(code);
+      let size = r.fontSize + delta;
+      size = Math.min(MAX_FONT, Math.max(MIN_FONT, size));
+
+      root.style.setProperty("--font-size", size + "px");
+      root.style.setProperty("--line-height", String(r.lineHeight));
+      root.style.setProperty("--letter-spacing", r.letterSpacing);
+      root.style.setProperty("--word-break", r.wordBreak);
+      root.style.setProperty("--font-weight", String(r.fontWeight));
+      root.style.setProperty("--font-family", r.fontFamily);
+      document.body.lang = code === "zh-CN" ? "zh-CN" : code;
+      scriptBox.lang = document.body.lang;
+    }
+
+    function bumpFont(step) {
+      const code = select.value;
+      const r = readabilityFor(code);
+      let next = getDelta(code) + step;
+      const clampedSize = Math.min(MAX_FONT, Math.max(MIN_FONT, r.fontSize + next));
+      next = clampedSize - r.fontSize;
+      setDelta(code, next);
+      applyReadability(code);
+    }
+
+    JIFC.viewer.fillLangSelect(select, JIFC.langByCode[initial] ? initial : "en");
+    applyReadability(select.value);
+    localStorage.setItem(LANG_KEY, select.value);
+
+    select.addEventListener("change", () => {
+      localStorage.setItem(LANG_KEY, select.value);
+      const url = new URL(location.href);
+      url.searchParams.set("lang", select.value);
+      history.replaceState(null, "", url);
+      applyReadability(select.value);
+    });
+
+    document.getElementById("fontUp").addEventListener("click", () => bumpFont(2));
+    document.getElementById("fontDown").addEventListener("click", () => bumpFont(-2));
+
+    if (navigator.wakeLock && navigator.wakeLock.request) {
+      navigator.wakeLock.request("screen").catch(() => {});
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          navigator.wakeLock.request("screen").catch(() => {});
+        }
+      });
+    }
+
+    JIFC.viewer.startPrompter({
+      langSelect: select,
+      scriptBox,
+      maxLines: 40,
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>CHEIL 송출기</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div class="container">
+      <header class="brand">
+        <div class="church">서귀포제일교회</div>
+        <div class="sub">실시간 다중 송출기 · Chrome 권장</div>
+      </header>
+
+      <section class="card">
+        <h2>OpenAI 설정</h2>
+        <div class="row">
+          <label for="apiKeyInput">API 키</label>
+          <input type="password" id="apiKeyInput" placeholder="sk-..." style="flex:1; min-width:220px;">
+          <button class="btn btn-info" id="saveKeyBtn" type="button">저장</button>
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <label for="modelSelect">모델</label>
+          <select id="modelSelect"></select>
+        </div>
+        <p class="hint">키는 이 브라우저 localStorage에만 저장됩니다. 저장소에는 올라가지 않습니다.</p>
+      </section>
+
+      <section class="card">
+        <h2>방송 제어</h2>
+        <div class="row" style="margin-bottom:12px;">
+          <span style="font-weight:700;">실시간 덮어쓰기 (Live Preview)</span>
+          <label class="switch">
+            <input type="checkbox" id="liveToggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <button class="btn btn-warn" id="folderBtn" type="button">저장 폴더 연결</button>
+          <button class="btn btn-danger" id="startBtn" type="button" style="display:none;">방송 시작</button>
+          <button class="btn btn-info" id="stopBtn" type="button" style="display:none;">방송 종료</button>
+          <a class="btn btn-ghost" href="index.html">홈</a>
+        </div>
+        <p class="hint" id="folderHint">폴더를 연결하면 날짜/시간별 하위 폴더에 자막·전문이 저장됩니다.</p>
+      </section>
+
+      <div class="realtime" id="realtimeText">대기 중...</div>
+      <div class="log-box" id="logBox" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/viewer.js"></script>
+  <script src="js/sentence.js"></script>
+  <script src="js/translator.js"></script>
+  <script src="js/broadcast.js"></script>
+  <script>
+    const apiKeyInput = document.getElementById("apiKeyInput");
+    const modelSelect = document.getElementById("modelSelect");
+    const realtimeText = document.getElementById("realtimeText");
+    const logBox = document.getElementById("logBox");
+    const folderBtn = document.getElementById("folderBtn");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+
+    apiKeyInput.value = JIFC.broadcast.loadApiKey();
+    const savedModel = JIFC.broadcast.loadModel();
+    modelSelect.innerHTML = JIFC.config.models.map((m) =>
+      `<option value="${m.id}"${m.id === savedModel ? " selected" : ""}>${m.label}</option>`
+    ).join("");
+    modelSelect.addEventListener("change", () => JIFC.broadcast.saveModel(modelSelect.value));
+
+    document.getElementById("saveKeyBtn").addEventListener("click", () => {
+      try {
+        JIFC.broadcast.saveApiKey(apiKeyInput.value);
+        alert("API 키가 이 브라우저에 저장되었습니다.");
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+
+    folderBtn.addEventListener("click", async () => {
+      try {
+        await JIFC.broadcast.connectLocalFolder();
+        folderBtn.style.display = "none";
+        startBtn.style.display = "inline-block";
+        document.getElementById("folderHint").textContent = "폴더 연결 완료. 방송 시작을 누르세요.";
+      } catch (_) {}
+    });
+
+    function appendLog(msgId, html) {
+      let el = document.getElementById(`log_${msgId}`);
+      if (!el) {
+        el = document.createElement("div");
+        el.id = `log_${msgId}`;
+        el.className = "log-item";
+        logBox.appendChild(el);
+      }
+      el.innerHTML = html;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    const handlers = {
+      isLiveOn: () => document.getElementById("liveToggle").checked,
+      onStart: () => {
+        realtimeText.textContent = "마이크 준비 완료";
+        realtimeText.style.color = "#4ade80";
+      },
+      onInterim: (text) => {
+        realtimeText.style.color = "";
+        if (!text) {
+          realtimeText.textContent = "듣는 중: ...";
+          return;
+        }
+        const display = text.length > 70 ? "..." + text.slice(-70) : text;
+        realtimeText.textContent = `듣는 중: ${display}`;
+      },
+      onSentence: (text, msgId) => {
+        appendLog(msgId, `
+          <div class="orig">원본: ${JIFC.viewer.escapeHtml(text)}</div>
+          <div class="pending">AI 교정 및 통역 중...</div>
+        `);
+      },
+      onTranslateStart: () => {},
+      onTranslateDone: (orig, msgId, highlighted) => {
+        appendLog(msgId, `
+          <div class="orig">원본: ${JIFC.viewer.escapeHtml(orig)}</div>
+          <div class="done">교정·번역 완료: ${highlighted}</div>
+        `);
+      },
+      onTranslateError: (orig, msgId, err) => {
+        appendLog(msgId, `
+          <div class="orig">원본: ${JIFC.viewer.escapeHtml(orig)}</div>
+          <div class="done" style="color:#ff6b6b;">오류: ${JIFC.viewer.escapeHtml(err)}</div>
+        `);
+      },
+      onError: (err) => {
+        realtimeText.textContent = `음성 인식 오류: ${err}`;
+        realtimeText.style.color = "#ff6b6b";
+      },
+      onSaved: () => alert("날짜별 폴더에 실시간 파일과 설교 전문(_full.txt)이 저장되었습니다."),
+    };
+
+    try {
+      JIFC.broadcast.createRecognition(handlers);
+    } catch (e) {
+      alert(e.message);
+    }
+
+    startBtn.addEventListener("click", async () => {
+      try {
+        JIFC.broadcast.saveModel(modelSelect.value);
+        await JIFC.broadcast.startBroadcast(handlers);
+        startBtn.style.display = "none";
+        stopBtn.style.display = "inline-block";
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+
+    stopBtn.addEventListener("click", async () => {
+      await JIFC.broadcast.stopBroadcast(handlers);
+      startBtn.style.display = "inline-block";
+      stopBtn.style.display = "none";
+      realtimeText.textContent = "대기 중...";
+      realtimeText.style.color = "";
+    });
+
+    JIFC.db.init().catch(() => {});
+  </script>
+</body>
+</html>
