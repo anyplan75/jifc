@@ -19,7 +19,7 @@
 
       <section class="card">
         <h2>성도님 안내 · 나의 통역</h2>
-        <p style="margin:0 0 8px; color:var(--muted);">언어 카드를 누르면 <strong>나의 통역</strong>(개인 청취) 화면으로 이동합니다. 선택한 언어 자막만 크게 표시됩니다.</p>
+        <p style="margin:0 0 8px; color:var(--muted);">오늘 송출 중인 언어만 표시됩니다. 카드를 누르면 개인 통역 화면으로 이동합니다.</p>
         <div class="lang-grid" id="langGrid"></div>
       </section>
 
@@ -36,7 +36,7 @@
           </a>
           <a class="nav-card" href="monitor.html">
             <strong>모니터</strong>
-            <span>8개 언어 멀티뷰 모니터링</span>
+            <span>다국어 멀티뷰 모니터링</span>
           </a>
           <a class="nav-card" href="overlay.html?lang=ko">
             <strong>OBS 오버레이</strong>
@@ -45,19 +45,36 @@
         </div>
       </section>
 
-      <p class="hint">QR 코드는 이 페이지 또는 <code>listen.html?lang=en</code> 같은 언어별 주소를 인쇄해 성도님께 안내하세요.</p>
+      <p class="hint">QR 코드는 이 페이지 또는 송출 중인 언어의 <code>listen.html?lang=...</code> 주소를 인쇄해 성도님께 안내하세요.</p>
     </div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
   <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/viewer.js"></script>
   <script>
-    document.getElementById("langGrid").innerHTML = JIFC.config.languages.map((l) => `
-      <a class="lang-link" href="listen.html?lang=${encodeURIComponent(l.code)}">
-        <span class="flag">${l.flag}</span>
-        <span class="name">${l.name}</span>
-        <span style="color:var(--muted);font-size:0.8rem;">${l.nameEn}</span>
-      </a>
-    `).join("");
+    const grid = document.getElementById("langGrid");
+
+    function renderLangCards(codes) {
+      const allow = new Set(codes);
+      const langs = JIFC.config.languages.filter((l) => allow.has(l.code));
+      grid.innerHTML = (langs.length ? langs : JIFC.config.languages).map((l) => `
+        <a class="lang-link" href="listen.html?lang=${encodeURIComponent(l.code)}">
+          <span class="flag">${l.flag}</span>
+          <span class="name">${l.name}</span>
+          <span style="color:var(--muted);font-size:0.8rem;">${l.nameEn}</span>
+        </a>
+      `).join("");
+    }
+
+    renderLangCards(["ko", ...JIFC.defaultSelectedTargets()]);
+    JIFC.db.init().then(() => {
+      JIFC.db.onValue("settings", (settings) => {
+        renderLangCards(JIFC.viewer.activeLangCodesFromSettings(settings));
+      });
+    });
   </script>
 </body>
 </html>
