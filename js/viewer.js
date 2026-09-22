@@ -101,26 +101,37 @@ JIFC.viewer = (() => {
     let lastTime = 0;
     let lines = [];
     let currentLang = langSelect.value;
+    let latestPayload = null;
 
     function clearScreen(message) {
       lines = [];
       scriptBox.innerHTML = `<p class="waiting">${escapeHtml(message)}</p>`;
     }
 
-    langSelect.addEventListener("change", () => {
-      currentLang = langSelect.value;
-      clearScreen("언어가 변경되었습니다. 다음 문장을 기다리는 중입니다...");
-    });
+    function renderLines() {
+      scriptBox.innerHTML = lines
+        .map((line) => {
+          const cls = line.isFinal === false ? "interim" : "";
+          return `<p class="${cls}">${escapeHtml(line.text)}</p>`;
+        })
+        .join("");
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    }
 
-    function applySubtitles(subtitles) {
-      if (!subtitles || subtitles._timestamp === lastTime) return;
-      lastTime = subtitles._timestamp;
-      const n = subtitles[currentLang];
-      if (!n) return;
+    function ingestLatestForLang(force = false) {
+      if (!latestPayload) return false;
+      const n = latestPayload[currentLang];
+      if (!n) return false;
 
       const text = typeof n === "object" ? n.text : n;
-      const msgId = typeof n === "object" ? n.id : lastTime;
+      const msgId = typeof n === "object" ? n.id : latestPayload._timestamp;
       const isFinal = typeof n === "object" && n.isFinal !== undefined ? n.isFinal : true;
+
+      if (force) {
+        lines = [{ id: msgId, text, isFinal }];
+        renderLines();
+        return true;
+      }
 
       const existingIndex = lines.findIndex((line) => line.id === msgId);
       if (existingIndex !== -1) {
@@ -130,15 +141,26 @@ JIFC.viewer = (() => {
         lines.push({ id: msgId, text, isFinal });
         if (lines.length > maxLines) lines.shift();
       }
+      renderLines();
+      return true;
+    }
 
-      scriptBox.innerHTML = lines
-        .map((line) => {
-          const cls = line.isFinal === false ? "interim" : "";
-          return `<p class="${cls}">${escapeHtml(line.text)}</p>`;
-        })
-        .join("");
+    langSelect.addEventListener("change", () => {
+      currentLang = langSelect.value;
+      if (ingestLatestForLang(true)) {
+        lastTime = latestPayload ? latestPayload._timestamp : 0;
+      } else {
+        lastTime = 0;
+        clearScreen("언어가 변경되었습니다. 다음 문장을 기다리는 중입니다...");
+      }
+    });
 
-      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    function applySubtitles(subtitles) {
+      if (!subtitles) return;
+      latestPayload = subtitles;
+      if (subtitles._timestamp === lastTime) return;
+      lastTime = subtitles._timestamp;
+      ingestLatestForLang(false);
     }
 
     JIFC.db.init().then(() => {

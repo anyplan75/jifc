@@ -2,80 +2,171 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>JIFC 실시간 통역</title>
+  <meta name="theme-color" content="#0c1118">
+  <title>JIFC 나의 통역</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
   <style>
     :root {
-      --bg: #10151c;
-      --panel: #1c2430;
-      --text: #f3f6fa;
-      --muted: #9aa8b8;
-      --accent: #1f8f6a;
-      --interim: #8b98a8;
+      --bg: #0c1118;
+      --panel: rgba(20, 28, 38, 0.96);
+      --text: #f5f7fa;
+      --muted: #8b9aab;
+      --line: #2a3545;
+      --accent: #2a9d75;
+      --interim: #9aa8b8;
+      --latest: #fff6d6;
+      --font-size: 26px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
-    body {
+
+    * { box-sizing: border-box; }
+
+    html, body {
       margin: 0;
-      background: var(--bg);
+      min-height: 100%;
+      background:
+        radial-gradient(900px 420px at 50% -20%, rgba(42, 157, 117, 0.16), transparent 60%),
+        var(--bg);
       color: var(--text);
-      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+      font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+      -webkit-text-size-adjust: 100%;
     }
+
     #header {
       position: fixed;
       top: 0; left: 0; right: 0;
-      background: rgba(28, 36, 48, 0.96);
-      backdrop-filter: blur(8px);
-      padding: 12px 16px 14px;
-      z-index: 10;
-      border-bottom: 1px solid #2a3545;
+      z-index: 20;
+      padding: calc(10px + var(--safe-top)) 14px 12px;
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
     }
+
     .church {
       text-align: center;
       font-weight: 800;
-      font-size: 0.95rem;
-      margin-bottom: 8px;
+      font-size: 0.9rem;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
       color: #fff;
     }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
     select {
       width: 100%;
-      padding: 12px;
+      padding: 12px 14px;
       font-size: 16px;
-      border-radius: 10px;
-      border: 1px solid #334155;
-      background: #0d1218;
-      color: white;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #0a0f15;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .size-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .size-btn {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #121a24;
+      color: #fff;
+      font-size: 1.15rem;
+      font-weight: 800;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .size-btn:active { background: #1c2836; }
+
+    #scriptBox {
+      margin-top: calc(118px + var(--safe-top));
+      padding: 8px 16px calc(56px + var(--safe-bottom));
+      max-width: 42rem;
+      margin-left: auto;
+      margin-right: auto;
+      font-size: var(--font-size);
+      line-height: 1.75;
+      letter-spacing: -0.01em;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+    }
+
+    #scriptBox p {
+      margin: 0 0 18px;
+      padding-bottom: 18px;
+      border-bottom: 1px dashed var(--line);
+      color: #dce3eb;
       font-weight: 600;
     }
-    #scriptBox {
-      margin-top: 110px;
-      padding: 20px 18px 60px;
-      font-size: 1.35rem;
-      line-height: 1.7;
+
+    #scriptBox p:last-child {
+      color: var(--latest);
+      font-weight: 800;
+      font-size: 1.08em;
+      border-bottom: none;
     }
-    #scriptBox p {
-      margin: 0 0 14px;
-      padding-bottom: 14px;
-      border-bottom: 1px dashed #2f3b4c;
+
+    #scriptBox p.interim {
+      color: var(--interim);
+      font-weight: 600;
+      font-size: 1em;
     }
-    #scriptBox p.interim { color: var(--interim); }
+
     #scriptBox p.waiting {
       color: var(--muted);
       border: none;
       text-align: center;
-      margin-top: 20vh;
+      margin-top: 22vh;
+      font-size: 1.05rem;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+
+    .hint-bar {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 8px 14px calc(8px + var(--safe-bottom));
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      background: linear-gradient(transparent, rgba(12, 17, 24, 0.92) 40%);
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
   <div id="header">
-    <div class="church">제주 국제순복음교회 · 실시간 통역</div>
-    <select id="langSelect" aria-label="언어 선택"></select>
+    <div class="church">제주 국제순복음교회 · 나의 통역</div>
+    <div class="controls">
+      <select id="langSelect" aria-label="언어 선택"></select>
+      <div class="size-controls">
+        <button type="button" class="size-btn" id="fontDown" aria-label="글자 작게">A-</button>
+        <button type="button" class="size-btn" id="fontUp" aria-label="글자 크게">A+</button>
+      </div>
+    </div>
   </div>
+
   <div id="scriptBox">
-    <p class="waiting">실시간 통역 대기 중입니다...</p>
+    <p class="waiting">언어를 고르면<br>선택한 언어 자막만 크게 표시됩니다.</p>
   </div>
+  <div class="hint-bar">최신 문장이 아래쪽에 강조됩니다</div>
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
@@ -83,12 +174,66 @@
   <script src="js/db.js"></script>
   <script src="js/viewer.js"></script>
   <script>
-    const initial = JIFC.viewer.queryLang("en");
+    const FONT_KEY = "jifc_listen_font";
+    const LANG_KEY = "jifc_listen_lang";
+    const MIN_FONT = 18;
+    const MAX_FONT = 42;
+    const DEFAULT_FONT = 26;
+
+    const params = new URLSearchParams(location.search);
+    const savedLang = localStorage.getItem(LANG_KEY);
+    const initial = params.get("lang") || savedLang || "en";
     const select = document.getElementById("langSelect");
-    JIFC.viewer.fillLangSelect(select, initial);
+    const root = document.documentElement;
+
+    let fontSize = parseInt(localStorage.getItem(FONT_KEY) || DEFAULT_FONT, 10);
+    if (Number.isNaN(fontSize)) fontSize = DEFAULT_FONT;
+
+    function applyFont() {
+      fontSize = Math.min(MAX_FONT, Math.max(MIN_FONT, fontSize));
+      root.style.setProperty("--font-size", fontSize + "px");
+      localStorage.setItem(FONT_KEY, String(fontSize));
+    }
+
+    applyFont();
+    JIFC.viewer.fillLangSelect(select, JIFC.langByCode[initial] ? initial : "en");
+
+    function syncLangUrl(code) {
+      localStorage.setItem(LANG_KEY, code);
+      const url = new URL(location.href);
+      url.searchParams.set("lang", code);
+      history.replaceState(null, "", url);
+    }
+
+    syncLangUrl(select.value);
+
+    select.addEventListener("change", () => {
+      syncLangUrl(select.value);
+    });
+
+    document.getElementById("fontUp").addEventListener("click", () => {
+      fontSize += 2;
+      applyFont();
+    });
+    document.getElementById("fontDown").addEventListener("click", () => {
+      fontSize -= 2;
+      applyFont();
+    });
+
+    // Keep screen awake during worship when supported
+    if (navigator.wakeLock && navigator.wakeLock.request) {
+      navigator.wakeLock.request("screen").catch(() => {});
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          navigator.wakeLock.request("screen").catch(() => {});
+        }
+      });
+    }
+
     JIFC.viewer.startPrompter({
       langSelect: select,
       scriptBox: document.getElementById("scriptBox"),
+      maxLines: 40,
     });
   </script>
 </body>
