@@ -149,6 +149,7 @@
       return Array.from(langPickGrid.querySelectorAll('input[type="checkbox"]:checked')).map((el) => el.value);
     }
 
+    let syncTimer = null;
     function refreshCount() {
       const n = currentTargets().length;
       selectedCount.textContent = `번역 ${n}개 + 한국어`;
@@ -157,6 +158,17 @@
         const on = label.querySelector("input").checked;
         label.classList.toggle("is-on", on);
       });
+      // 성도 listen 목록이 바로 따라오도록 Firebase에 선택 언어 동기화
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => {
+        JIFC.db.init()
+          .then(() => JIFC.broadcast.syncSettingsForTargets(currentTargets()))
+          .catch(() => {});
+      }, 400);
+      // 링크 미리보기 갱신
+      if (typeof renderLinks === "function") {
+        renderLinks(JIFC.broadcast.buildOverlayLinks(currentTargets()));
+      }
     }
 
     function renderLangPicker(selected) {
