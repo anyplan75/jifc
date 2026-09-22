@@ -8,6 +8,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0c1118">
   <title>JIFC 나의 통역</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@500;600;700;800&family=Noto+Sans+SC:wght@500;600;700&family=Noto+Sans+KR:wght@500;600;700;800&family=Noto+Sans+Devanagari:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
   <style>
     :root {
@@ -20,6 +23,11 @@
       --interim: #9aa8b8;
       --latest: #fff6d6;
       --font-size: 26px;
+      --line-height: 1.75;
+      --letter-spacing: -0.01em;
+      --word-break: keep-all;
+      --font-weight: 650;
+      --font-family: "Pretendard", "Noto Sans KR", sans-serif;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
@@ -33,7 +41,7 @@
         radial-gradient(900px 420px at 50% -20%, rgba(42, 157, 117, 0.16), transparent 60%),
         var(--bg);
       color: var(--text);
-      font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+      font-family: var(--font-family);
       -webkit-text-size-adjust: 100%;
     }
 
@@ -54,6 +62,7 @@
       letter-spacing: -0.02em;
       margin-bottom: 10px;
       color: #fff;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
     }
 
     .controls {
@@ -72,6 +81,7 @@
       background: #0a0f15;
       color: #fff;
       font-weight: 700;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
     }
 
     .size-controls {
@@ -89,23 +99,21 @@
       font-size: 1.15rem;
       font-weight: 800;
       cursor: pointer;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
+      font-family: "Pretendard", sans-serif;
     }
 
     .size-btn:active { background: #1c2836; }
 
     #scriptBox {
       margin-top: calc(118px + var(--safe-top));
-      padding: 8px 16px calc(56px + var(--safe-bottom));
-      max-width: 42rem;
-      margin-left: auto;
-      margin-right: auto;
+      padding: 8px 16px calc(36px + var(--safe-bottom));
       font-size: var(--font-size);
-      line-height: 1.75;
-      letter-spacing: -0.01em;
-      word-break: keep-all;
+      line-height: var(--line-height);
+      letter-spacing: var(--letter-spacing);
+      word-break: var(--word-break);
       overflow-wrap: break-word;
+      font-family: var(--font-family);
+      font-weight: var(--font-weight);
     }
 
     #scriptBox p {
@@ -113,13 +121,12 @@
       padding-bottom: 18px;
       border-bottom: 1px dashed var(--line);
       color: #dce3eb;
-      font-weight: 600;
     }
 
     #scriptBox p:last-child {
       color: var(--latest);
       font-weight: 800;
-      font-size: 1.08em;
+      font-size: 1.06em;
       border-bottom: none;
     }
 
@@ -137,6 +144,8 @@
       font-size: 1.05rem;
       font-weight: 600;
       line-height: 1.6;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+      letter-spacing: -0.01em;
     }
 
     .hint-bar {
@@ -148,6 +157,7 @@
       color: var(--muted);
       background: linear-gradient(transparent, rgba(12, 17, 24, 0.92) 40%);
       pointer-events: none;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
     }
   </style>
 </head>
@@ -164,9 +174,9 @@
   </div>
 
   <div id="scriptBox">
-    <p class="waiting">언어를 고르면<br>선택한 언어 자막만 크게 표시됩니다.</p>
+    <p class="waiting">언어를 고르면<br>그 언어에 맞는 글씨체로 크게 표시됩니다.</p>
   </div>
-  <div class="hint-bar">최신 문장이 아래쪽에 강조됩니다</div>
+  <div class="hint-bar">언어마다 글꼴·자간·줄간격이 자동 조절됩니다 · A+/A-로 크기만 변경</div>
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
@@ -174,53 +184,86 @@
   <script src="js/db.js"></script>
   <script src="js/viewer.js"></script>
   <script>
-    const FONT_KEY = "jifc_listen_font";
     const LANG_KEY = "jifc_listen_lang";
-    const MIN_FONT = 18;
-    const MAX_FONT = 42;
-    const DEFAULT_FONT = 26;
+    const FONT_DELTA_PREFIX = "jifc_listen_font_delta_";
+    const MIN_FONT = 16;
+    const MAX_FONT = 44;
+
+    const DEFAULT_READABILITY = {
+      fontSize: 26,
+      lineHeight: 1.75,
+      letterSpacing: "-0.01em",
+      wordBreak: "keep-all",
+      fontWeight: 650,
+      fontFamily: '"Pretendard", "Noto Sans KR", sans-serif',
+    };
 
     const params = new URLSearchParams(location.search);
     const savedLang = localStorage.getItem(LANG_KEY);
     const initial = params.get("lang") || savedLang || "en";
     const select = document.getElementById("langSelect");
     const root = document.documentElement;
+    const scriptBox = document.getElementById("scriptBox");
 
-    let fontSize = parseInt(localStorage.getItem(FONT_KEY) || DEFAULT_FONT, 10);
-    if (Number.isNaN(fontSize)) fontSize = DEFAULT_FONT;
-
-    function applyFont() {
-      fontSize = Math.min(MAX_FONT, Math.max(MIN_FONT, fontSize));
-      root.style.setProperty("--font-size", fontSize + "px");
-      localStorage.setItem(FONT_KEY, String(fontSize));
+    function fontDeltaKey(code) {
+      return FONT_DELTA_PREFIX + code;
     }
 
-    applyFont();
+    function getDelta(code) {
+      const n = parseInt(localStorage.getItem(fontDeltaKey(code)) || "0", 10);
+      return Number.isNaN(n) ? 0 : n;
+    }
+
+    function setDelta(code, delta) {
+      localStorage.setItem(fontDeltaKey(code), String(delta));
+    }
+
+    function readabilityFor(code) {
+      const meta = JIFC.langByCode[code];
+      return Object.assign({}, DEFAULT_READABILITY, (meta && meta.readability) || {});
+    }
+
+    function applyReadability(code) {
+      const r = readabilityFor(code);
+      const delta = getDelta(code);
+      let size = r.fontSize + delta;
+      size = Math.min(MAX_FONT, Math.max(MIN_FONT, size));
+
+      root.style.setProperty("--font-size", size + "px");
+      root.style.setProperty("--line-height", String(r.lineHeight));
+      root.style.setProperty("--letter-spacing", r.letterSpacing);
+      root.style.setProperty("--word-break", r.wordBreak);
+      root.style.setProperty("--font-weight", String(r.fontWeight));
+      root.style.setProperty("--font-family", r.fontFamily);
+      document.body.lang = code === "zh-CN" ? "zh-CN" : code;
+      scriptBox.lang = document.body.lang;
+    }
+
+    function bumpFont(step) {
+      const code = select.value;
+      const r = readabilityFor(code);
+      let next = getDelta(code) + step;
+      const clampedSize = Math.min(MAX_FONT, Math.max(MIN_FONT, r.fontSize + next));
+      next = clampedSize - r.fontSize;
+      setDelta(code, next);
+      applyReadability(code);
+    }
+
     JIFC.viewer.fillLangSelect(select, JIFC.langByCode[initial] ? initial : "en");
-
-    function syncLangUrl(code) {
-      localStorage.setItem(LANG_KEY, code);
-      const url = new URL(location.href);
-      url.searchParams.set("lang", code);
-      history.replaceState(null, "", url);
-    }
-
-    syncLangUrl(select.value);
+    applyReadability(select.value);
+    localStorage.setItem(LANG_KEY, select.value);
 
     select.addEventListener("change", () => {
-      syncLangUrl(select.value);
+      localStorage.setItem(LANG_KEY, select.value);
+      const url = new URL(location.href);
+      url.searchParams.set("lang", select.value);
+      history.replaceState(null, "", url);
+      applyReadability(select.value);
     });
 
-    document.getElementById("fontUp").addEventListener("click", () => {
-      fontSize += 2;
-      applyFont();
-    });
-    document.getElementById("fontDown").addEventListener("click", () => {
-      fontSize -= 2;
-      applyFont();
-    });
+    document.getElementById("fontUp").addEventListener("click", () => bumpFont(2));
+    document.getElementById("fontDown").addEventListener("click", () => bumpFont(-2));
 
-    // Keep screen awake during worship when supported
     if (navigator.wakeLock && navigator.wakeLock.request) {
       navigator.wakeLock.request("screen").catch(() => {});
       document.addEventListener("visibilitychange", () => {
@@ -232,7 +275,7 @@
 
     JIFC.viewer.startPrompter({
       langSelect: select,
-      scriptBox: document.getElementById("scriptBox"),
+      scriptBox,
       maxLines: 40,
     });
   </script>
