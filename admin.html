@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>JIFC 자막 제어판</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <link rel="stylesheet" href="css/main.css">
+  <style>
+    .lang-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 0;
+      border-top: 1px solid var(--border);
+    }
+    .lang-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 180px;
+      color: #fff;
+      font-size: 1.05rem;
+    }
+    .lang-label input { width: 20px; height: 20px; }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .settings-grid label { display: flex; flex-direction: column; gap: 6px; color: #fff; }
+    input[type="color"] { height: 42px; width: 100%; border: none; border-radius: 8px; background: transparent; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="container">
+      <header class="brand">
+        <div class="church">제주 국제순복음교회</div>
+        <div class="sub">예배 자막 마스터 제어판</div>
+      </header>
+
+      <section class="card">
+        <h2>전체 화면·디자인</h2>
+        <div class="settings-grid">
+          <label>화면 배치
+            <select id="global_layout">
+              <option value="bottom" selected>아래 (하단)</option>
+              <option value="top">위 (상단)</option>
+              <option value="left">왼쪽</option>
+              <option value="right">오른쪽</option>
+            </select>
+          </label>
+          <label>글자 정렬
+            <select id="global_align">
+              <option value="left">좌측</option>
+              <option value="center" selected>중앙</option>
+              <option value="right">우측</option>
+            </select>
+          </label>
+          <label>글자 색상
+            <input type="color" id="global_color" value="#ffffff">
+          </label>
+          <label>배경 색상
+            <input type="color" id="global_bgColor" value="#000000">
+          </label>
+          <label>배경 투명도 (0~1)
+            <input type="number" id="global_bgOpacity" value="0.7" step="0.1" min="0" max="1">
+          </label>
+        </div>
+      </section>
+
+      <section class="card" id="controls">
+        <h2>언어별 크기·켜기/끄기</h2>
+        <p class="hint" style="margin-top:0;">꺼진 언어는 송출기가 번역하지 않아 API 비용과 지연이 줄어듭니다.</p>
+      </section>
+
+      <button class="btn" id="applyBtn" type="button" style="width:100%; padding:16px; font-size:1.1rem;">설정 실시간 적용</button>
+      <p id="msg" class="hint" style="text-align:center; color:#4ade80; font-size:1rem;"></p>
+      <p style="text-align:center; margin-top:12px;"><a href="index.html">홈으로</a></p>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script>
+    const controls = document.getElementById("controls");
+    JIFC.config.languages.forEach((lang) => {
+      const row = document.createElement("div");
+      row.className = "lang-row";
+      row.innerHTML = `
+        <label class="lang-label">
+          <input type="checkbox" id="check_${lang.code}" checked>
+          ${lang.flag} ${lang.name}
+        </label>
+        <div class="row">
+          <div>크기 <input type="number" id="size_${lang.code}" value="${lang.defaultSize}" style="width:70px;"></div>
+          <div>자간 <input type="number" id="spacing_${lang.code}" value="${lang.defaultSpacing}" step="0.5" style="width:70px;"></div>
+        </div>
+      `;
+      controls.appendChild(row);
+    });
+
+    async function loadSettings() {
+      await JIFC.db.init();
+      const data = await JIFC.db.get("settings");
+      if (!data) return;
+      if (data.global) {
+        document.getElementById("global_layout").value = data.global.layout || "bottom";
+        document.getElementById("global_align").value = data.global.align || "center";
+        document.getElementById("global_color").value = data.global.color || "#ffffff";
+        document.getElementById("global_bgColor").value = data.global.bgColor || "#000000";
+        document.getElementById("global_bgOpacity").value =
+          data.global.bgOpacity !== undefined ? data.global.bgOpacity : 0.7;
+      }
+      JIFC.config.languages.forEach((lang) => {
+        if (!data[lang.code]) return;
+        document.getElementById(`check_${lang.code}`).checked = data[lang.code].show !== false;
+        document.getElementById(`size_${lang.code}`).value = data[lang.code].fontSize || lang.defaultSize;
+        document.getElementById(`spacing_${lang.code}`).value =
+          data[lang.code].letterSpacing !== undefined ? data[lang.code].letterSpacing : lang.defaultSpacing;
+      });
+    }
+
+    document.getElementById("applyBtn").addEventListener("click", async () => {
+      const currentSettings = {
+        _timestamp: Date.now(),
+        global: {
+          layout: document.getElementById("global_layout").value,
+          align: document.getElementById("global_align").value,
+          color: document.getElementById("global_color").value,
+          bgColor: document.getElementById("global_bgColor").value,
+          bgOpacity: parseFloat(document.getElementById("global_bgOpacity").value),
+        },
+      };
+      JIFC.config.languages.forEach((lang) => {
+        currentSettings[lang.code] = {
+          show: document.getElementById(`check_${lang.code}`).checked,
+          fontSize: parseFloat(document.getElementById(`size_${lang.code}`).value),
+          letterSpacing: parseFloat(document.getElementById(`spacing_${lang.code}`).value),
+        };
+      });
+      try {
+        await JIFC.db.set("settings", currentSettings);
+        const msg = document.getElementById("msg");
+        msg.textContent = "설정이 실시간 화면에 반영되었습니다.";
+        setTimeout(() => (msg.textContent = ""), 3000);
+      } catch (_) {
+        alert("설정 전송 실패. Firebase 규칙을 확인해 주세요.");
+      }
+    });
+
+    loadSettings();
+  </script>
+</body>
+</html>

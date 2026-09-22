@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JIFC OBS 오버레이</title>
+  <link rel="stylesheet" href="css/overlay.css">
+</head>
+<body>
+  <div id="container" class="layout-bottom">
+    <div id="subtitle">자막 대기 중...</div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/viewer.js"></script>
+  <script>
+    const lang = JIFC.viewer.queryLang("ko");
+    document.title = `JIFC Overlay (${lang})`;
+    JIFC.viewer.startOverlay({
+      lang,
+      container: document.getElementById("container"),
+      subtitle: document.getElementById("subtitle"),
+    });
+  </script>
+</body>
+</html>
