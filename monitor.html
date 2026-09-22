@@ -27,14 +27,13 @@
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(2, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 12px;
       height: calc(100vh - 52px);
+      overflow: auto;
+      align-content: stretch;
     }
-    @media (max-width: 1100px) {
-      .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); }
-    }
+    .box { min-height: 160px; }
     .box {
       background: #151c27;
       border: 1px solid #2a3545;

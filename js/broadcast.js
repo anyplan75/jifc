@@ -82,22 +82,86 @@ JIFC.broadcast = (() => {
     if (!isFinal) saveTextToFile("temp_live.txt", text);
   }
 
-  async function loadEnabledTargets() {
+  const TARGETS_KEY = "jifc_broadcast_targets";
+
+  function loadSavedTargets() {
     try {
-      const settings = await JIFC.db.get("settings");
-      if (!settings) {
-        state.enabledTargets = JIFC.targetLangCodes();
-        return state.enabledTargets;
-      }
-      state.enabledTargets = JIFC.targetLangCodes().filter((code) => {
-        const s = settings[code];
-        return !s || s.show !== false;
-      });
-      return state.enabledTargets;
+      const raw = localStorage.getItem(TARGETS_KEY);
+      if (!raw) return JIFC.defaultSelectedTargets();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return JIFC.defaultSelectedTargets();
+      const valid = parsed.filter((c) => c !== "ko" && JIFC.langByCode[c]);
+      return valid.length ? valid : JIFC.defaultSelectedTargets();
     } catch (_) {
-      state.enabledTargets = JIFC.targetLangCodes();
+      return JIFC.defaultSelectedTargets();
+    }
+  }
+
+  function saveTargets(codes) {
+    const valid = (codes || []).filter((c) => c !== "ko" && JIFC.langByCode[c]);
+    localStorage.setItem(TARGETS_KEY, JSON.stringify(valid));
+    state.enabledTargets = valid;
+    return valid;
+  }
+
+  function setEnabledTargets(codes) {
+    return saveTargets(codes);
+  }
+
+  function getEnabledTargets() {
+    if (Array.isArray(state.enabledTargets) && state.enabledTargets.length) {
       return state.enabledTargets;
     }
+    state.enabledTargets = loadSavedTargets();
+    return state.enabledTargets;
+  }
+
+  /** 송출기에서 고른 언어만 API 번역 대상으로 사용 */
+  function loadEnabledTargets() {
+    state.enabledTargets = getEnabledTargets();
+    return Promise.resolve(state.enabledTargets);
+  }
+
+  /** 선택 언어를 Firebase settings에 반영 → 오버레이/모니터 show 동기화 */
+  async function syncSettingsForTargets(targets) {
+    const existing = (await JIFC.db.get("settings")) || {};
+    const next = {
+      _timestamp: Date.now(),
+      global: existing.global || {
+        layout: "bottom",
+        align: "center",
+        color: "#ffffff",
+        bgColor: "#000000",
+        bgOpacity: 0.7,
+      },
+    };
+    JIFC.config.languages.forEach((lang) => {
+      const prev = existing[lang.code] || {};
+      const selected = lang.code === "ko" || targets.includes(lang.code);
+      next[lang.code] = {
+        show: selected,
+        fontSize: prev.fontSize || lang.defaultSize,
+        letterSpacing: prev.letterSpacing !== undefined ? prev.letterSpacing : lang.defaultSpacing,
+      };
+    });
+    await JIFC.db.set("settings", next);
+    return next;
+  }
+
+  function buildOverlayLinks(targets, origin) {
+    const base = (origin || location.origin + location.pathname.replace(/[^/]*$/, "")).replace(/\/?$/, "/");
+    const codes = ["ko", ...targets];
+    return codes.map((code) => {
+      const meta = JIFC.langByCode[code] || { code, name: code, flag: "", nameEn: code };
+      return {
+        code,
+        name: meta.name,
+        nameEn: meta.nameEn,
+        flag: meta.flag,
+        overlay: `${base}overlay.html?lang=${encodeURIComponent(code)}`,
+        listen: `${base}listen.html?lang=${encodeURIComponent(code)}`,
+      };
+    });
   }
 
   function highlightDifferences(origText, corrText) {
@@ -219,7 +283,12 @@ JIFC.broadcast = (() => {
     if (!state.rootFolderHandle) throw new Error("먼저 저장 폴더를 연결해 주세요.");
 
     await JIFC.db.init();
-    await loadEnabledTargets();
+    const targets = getEnabledTargets();
+    if (!targets.length) {
+      throw new Error("번역할 언어를 하나 이상 선택해 주세요. (한국어는 항상 포함됩니다)");
+    }
+    state.enabledTargets = targets;
+    await syncSettingsForTargets(targets);
 
     const now = new Date();
     const pad = (n) => String(n).padStart(2, "0");
@@ -253,6 +322,10 @@ JIFC.broadcast = (() => {
         handlers.onInterim && handlers.onInterim("");
       }
     }, 500);
+
+    const links = buildOverlayLinks(targets);
+    handlers.onLinksReady && handlers.onLinksReady(links, targets);
+    return links;
   }
 
   async function stopBroadcast(handlers) {
@@ -297,5 +370,11 @@ JIFC.broadcast = (() => {
     startBroadcast,
     stopBroadcast,
     loadEnabledTargets,
+    loadSavedTargets,
+    saveTargets,
+    setEnabledTargets,
+    getEnabledTargets,
+    buildOverlayLinks,
+    syncSettingsForTargets,
   };
 })();
