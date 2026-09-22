@@ -122,11 +122,14 @@ JIFC.broadcast = (() => {
     return Promise.resolve(state.enabledTargets);
   }
 
-  /** 선택 언어를 Firebase settings에 반영 → 오버레이/모니터 show 동기화 */
+  /** 선택 언어를 Firebase settings에 반영 → listen/오버레이 목록 동기화 */
   async function syncSettingsForTargets(targets) {
     const existing = (await JIFC.db.get("settings")) || {};
+    const selectedTargets = (targets || []).filter((c) => c !== "ko" && JIFC.langByCode[c]);
+    const activeTargets = ["ko", ...selectedTargets];
     const next = {
       _timestamp: Date.now(),
+      activeTargets,
       global: existing.global || {
         layout: "bottom",
         align: "center",
@@ -137,7 +140,7 @@ JIFC.broadcast = (() => {
     };
     JIFC.config.languages.forEach((lang) => {
       const prev = existing[lang.code] || {};
-      const selected = lang.code === "ko" || targets.includes(lang.code);
+      const selected = activeTargets.includes(lang.code);
       next[lang.code] = {
         show: selected,
         fontSize: prev.fontSize || lang.defaultSize,

@@ -179,12 +179,13 @@ JIFC.viewer = (() => {
   }
 
   function fillLangSelect(selectEl, selected, allowedCodes) {
+    const fallback = ["ko", ...JIFC.defaultSelectedTargets()].map((c) => JIFC.langByCode[c]).filter(Boolean);
     let langs = JIFC.config.languages;
-    if (Array.isArray(allowedCodes) && allowedCodes.length) {
+    if (Array.isArray(allowedCodes)) {
       const allow = new Set(allowedCodes);
-      langs = langs.filter((l) => allow.has(l.code));
+      langs = JIFC.config.languages.filter((l) => allow.has(l.code));
     }
-    if (!langs.length) langs = JIFC.config.languages;
+    if (!langs.length) langs = fallback.length ? fallback : JIFC.config.languages.slice(0, 1);
 
     const preferred = langs.some((l) => l.code === selected) ? selected : langs[0].code;
     selectEl.innerHTML = langs
@@ -197,20 +198,22 @@ JIFC.viewer = (() => {
   }
 
   /**
-   * Firebase settings.show 기준 활성 언어 코드 목록
-   * settings 없거나 비어 있으면 defaultSelected(+ko) 사용
+   * 송출기가 기록한 activeTargets 우선.
+   * 없으면 show===true 만. 둘 다 없으면 추천 언어.
    */
   function activeLangCodesFromSettings(settings) {
-    if (!settings) {
-      return ["ko", ...JIFC.defaultSelectedTargets()];
+    const fallback = ["ko", ...JIFC.defaultSelectedTargets()];
+    if (!settings) return fallback;
+
+    if (Array.isArray(settings.activeTargets) && settings.activeTargets.length) {
+      const codes = settings.activeTargets.filter((c) => JIFC.langByCode[c]);
+      return codes.length ? codes : fallback;
     }
+
     const active = JIFC.config.languages
-      .filter((l) => {
-        const s = settings[l.code];
-        return !s || s.show !== false;
-      })
+      .filter((l) => settings[l.code] && settings[l.code].show === true)
       .map((l) => l.code);
-    return active.length ? active : ["ko", ...JIFC.defaultSelectedTargets()];
+    return active.length ? active : fallback;
   }
 
   return { queryLang, startOverlay, startPrompter, fillLangSelect, activeLangCodesFromSettings, escapeHtml, hexToRgba };
