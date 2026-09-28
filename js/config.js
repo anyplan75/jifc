@@ -196,7 +196,11 @@ JIFC.config = {
   ],
 
   livePushMinInterval: 250,
-  silenceFlushMs: 2000,
+  /** 침묵 후 문장 flush (설교 호흡 고려 — 너무 짧으면 mid-phrase 절단) */
+  silenceFlushMs: 3200,
+  /** 조사·어간으로 끝나도 강제로 flush하는 상한 */
+  silenceForceFlushMs: 6500,
+  minFlushChars: 8,
 };
 
 JIFC.langByCode = Object.fromEntries(JIFC.config.languages.map((l) => [l.code, l]));

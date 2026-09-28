@@ -21,6 +21,10 @@ JIFC.broadcast = (() => {
     lastLivePushTime: 0,
     sessionFullTexts: {},
     enabledTargets: null, // null = 전부
+    /** 직전 교정문 — 번역 문맥용 (최대 2문장) */
+    recentContext: [],
+    /** 침묵 보류 조각 (조사 꼬리 등) — 다음 문장과 병합 */
+    holdFragment: "",
   };
 
   function resetSessionTexts() {
@@ -204,12 +208,15 @@ JIFC.broadcast = (() => {
 
       let unprocessedText = totalText.substring(state.totalProcessedLength);
       let match = JIFC.sentence.findCutMatch(unprocessedText);
-      while (match) {
+      let cutGuard = 0;
+      while (match && cutGuard++ < 40) {
         const cutIndex = match.index + match[0].length;
         const sentenceToProcess = unprocessedText.substring(0, cutIndex).trim();
         const liveOn = handlers.isLiveOn ? handlers.isLiveOn() : true;
 
-        if (liveOn) pushLiveKorean(sentenceToProcess, state.currentSentenceId, false);
+        if (sentenceToProcess && !JIFC.sentence.isNoise(sentenceToProcess) && liveOn) {
+          pushLiveKorean(sentenceToProcess, state.currentSentenceId, false);
+        }
 
         state.totalProcessedLength += cutIndex;
         unprocessedText = totalText.substring(state.totalProcessedLength);
@@ -217,10 +224,7 @@ JIFC.broadcast = (() => {
         const idToProcess = state.currentSentenceId;
         state.currentSentenceId = Date.now();
 
-        if (sentenceToProcess.length > 0) {
-          handlers.onSentence && handlers.onSentence(sentenceToProcess, idToProcess);
-          processTranslation(sentenceToProcess, idToProcess, handlers);
-        }
+        if (sentenceToProcess) enqueueSentence(sentenceToProcess, idToProcess, handlers);
         match = JIFC.sentence.findCutMatch(unprocessedText);
       }
 
@@ -253,30 +257,84 @@ JIFC.broadcast = (() => {
     return recognition;
   }
 
+  function takeHoldMerged(text) {
+    const cur = String(text || "").trim();
+    if (!state.holdFragment) return cur;
+    const merged = `${state.holdFragment} ${cur}`.replace(/\s+/g, " ").trim();
+    state.holdFragment = "";
+    return merged;
+  }
+
+  function rememberContext(correctedKo) {
+    const t = String(correctedKo || "").trim();
+    if (!t) return;
+    state.recentContext.push(t);
+    if (state.recentContext.length > 2) state.recentContext.shift();
+  }
+
+  function enqueueSentence(rawText, msgId, handlers, opts) {
+    const force = opts && opts.force;
+    let text = takeHoldMerged(rawText);
+    text = String(text || "").trim();
+    if (!text || JIFC.sentence.isNoise(text)) return;
+
+    // 조사 꼬리만 남으면 보류 후 다음 조각과 합침
+    // force(침묵 상한·방송 종료)일 때는 무한 보류 방지를 위해 그대로 송출
+    if (!force && JIFC.sentence.isHangingTail(text) && text.length < 80) {
+      state.holdFragment = state.holdFragment
+        ? `${state.holdFragment} ${text}`.replace(/\s+/g, " ").trim()
+        : text;
+      return;
+    }
+
+    handlers.onSentence && handlers.onSentence(text, msgId);
+    processTranslation(text, msgId, handlers);
+  }
+
   async function processTranslation(koreanText, msgId, handlers) {
+    if (!koreanText || JIFC.sentence.isNoise(koreanText)) return;
+
     handlers.onTranslateStart && handlers.onTranslateStart(koreanText, msgId);
     try {
-      const targets = state.enabledTargets || (await loadEnabledTargets());
+      const targets = state.enabledTargets || getEnabledTargets();
+      const previousContext = state.recentContext.join("\n");
       const result = await JIFC.translator.translate(koreanText, {
         apiKey: state.apiKey,
         model: state.model,
         targetCodes: targets,
+        previousContext,
       });
+
+      // 교정이 빈 문자열이면 잡음으로 간주하고 송출 생략
+      if (result.ko != null && !String(result.ko).trim()) {
+        handlers.onTranslateDone && handlers.onTranslateDone(koreanText, msgId, "", { ko: "" });
+        return;
+      }
 
       const highlighted = highlightDifferences(koreanText, result.ko);
       handlers.onTranslateDone && handlers.onTranslateDone(koreanText, msgId, highlighted, result);
+      rememberContext(result.ko);
 
       const payload = { _timestamp: Date.now() };
       const codes = ["ko", ...targets];
       for (const lang of codes) {
         if (!result[lang]) continue;
-        saveTextToFile(`${lang}.txt`, result[lang]);
+        const out = String(result[lang]).trim();
+        if (!out) continue;
+        saveTextToFile(`${lang}.txt`, out);
         if (!state.sessionFullTexts[lang]) state.sessionFullTexts[lang] = [];
-        state.sessionFullTexts[lang].push(result[lang]);
-        payload[lang] = { text: result[lang], id: msgId, isFinal: true };
+        state.sessionFullTexts[lang].push(out);
+        payload[lang] = { text: out, id: msgId, isFinal: true };
       }
-      await JIFC.db.update("subtitles", payload);
+      if (payload.ko) await JIFC.db.update("subtitles", payload);
     } catch (err) {
+      // 번역 실패해도 원문 한국어는 자막으로 남겨 안정성 확보
+      try {
+        await JIFC.db.update("subtitles", {
+          _timestamp: Date.now(),
+          ko: { text: koreanText, id: msgId, isFinal: true },
+        });
+      } catch (_) {}
       handlers.onTranslateError && handlers.onTranslateError(koreanText, msgId, err.message || String(err));
     }
   }
@@ -302,6 +360,8 @@ JIFC.broadcast = (() => {
     state.totalProcessedLength = 0;
     state.globalUnprocessedText = "";
     state.currentSentenceId = Date.now();
+    state.recentContext = [];
+    state.holdFragment = "";
     resetSessionTexts();
 
     if (!state.recognition) createRecognition(handlers);
@@ -310,20 +370,22 @@ JIFC.broadcast = (() => {
     state.silenceTimer = setInterval(() => {
       if (!state.isBroadcasting) return;
       const silenceDuration = Date.now() - state.lastSpeechTime;
-      if (silenceDuration > JIFC.config.silenceFlushMs && state.globalUnprocessedText.trim().length > 0) {
-        const sentenceToProcess = state.globalUnprocessedText.trim();
-        const liveOn = handlers.isLiveOn ? handlers.isLiveOn() : true;
-        if (liveOn) pushLiveKorean(sentenceToProcess, state.currentSentenceId, false);
+      const pending = state.globalUnprocessedText.trim();
+      if (!pending) return;
 
-        state.totalProcessedLength += state.globalUnprocessedText.length;
-        state.globalUnprocessedText = "";
+      if (!JIFC.sentence.canSilenceFlush(pending, silenceDuration, JIFC.config)) return;
 
-        const idToProcess = state.currentSentenceId;
-        state.currentSentenceId = Date.now();
-        handlers.onSentence && handlers.onSentence(sentenceToProcess, idToProcess);
-        processTranslation(sentenceToProcess, idToProcess, handlers);
-        handlers.onInterim && handlers.onInterim("");
-      }
+      const forceFlush = silenceDuration >= (JIFC.config.silenceForceFlushMs || 6500);
+      const liveOn = handlers.isLiveOn ? handlers.isLiveOn() : true;
+      if (liveOn) pushLiveKorean(pending, state.currentSentenceId, false);
+
+      state.totalProcessedLength += state.globalUnprocessedText.length;
+      state.globalUnprocessedText = "";
+
+      const idToProcess = state.currentSentenceId;
+      state.currentSentenceId = Date.now();
+      enqueueSentence(pending, idToProcess, handlers, { force: forceFlush });
+      handlers.onInterim && handlers.onInterim("");
     }, 500);
 
     const links = buildOverlayLinks(targets);
@@ -336,10 +398,17 @@ JIFC.broadcast = (() => {
     clearInterval(state.silenceTimer);
     if (state.recognition) state.recognition.stop();
 
-    if (state.globalUnprocessedText.trim().length > 0) {
-      const sentenceToProcess = state.globalUnprocessedText.trim();
-      state.globalUnprocessedText = "";
-      await processTranslation(sentenceToProcess, Date.now(), handlers || {});
+    // 종료 시 보류 조각까지 모두 비움
+    let leftover = state.globalUnprocessedText.trim();
+    state.globalUnprocessedText = "";
+    if (state.holdFragment) {
+      leftover = leftover
+        ? `${state.holdFragment} ${leftover}`.replace(/\s+/g, " ").trim()
+        : state.holdFragment;
+      state.holdFragment = "";
+    }
+    if (leftover && !JIFC.sentence.isNoise(leftover)) {
+      await processTranslation(leftover, Date.now(), handlers || {});
     }
 
     setTimeout(async () => {
